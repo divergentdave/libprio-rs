@@ -506,9 +506,8 @@ dependencies = [
 
 [[package]]
 name = "fiat-crypto"
-version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
+version = "0.2.0"
+source = "git+https://github.com/divergentdave/fiat-crypto?branch=rust-typedef-newtypes#277aa25563677198dbe1a47037edb864f532846e"
 
 [[package]]
 name = "fixed"
