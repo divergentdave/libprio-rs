@@ -41,6 +41,11 @@ notes = "This is only used when the \"crypto-dependencies\" feature is enabled."
 version = "0.5.1"
 criteria = "safe-to-run"
 
+[[exemptions.arrayvec]]
+version = "0.7.4"
+criteria = "safe-to-deploy"
+notes = "Exempted for initial experimentation with different XOFs"
+
 [[exemptions.az]]
 version = "1.2.1"
 criteria = "safe-to-deploy"
@@ -52,6 +57,11 @@ criteria = "safe-to-run"
 [[exemptions.bitvec]]
 version = "1.0.1"
 criteria = "safe-to-deploy"
+
+[[exemptions.blake3]]
+version = "1.5.0"
+criteria = "safe-to-deploy"
+notes = "Exempted for initial experimentation with different XOFs"
 
 [[exemptions.bytemuck]]
 version = "1.12.1"
