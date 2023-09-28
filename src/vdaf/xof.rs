@@ -471,6 +471,59 @@ impl RngCore for SeedStreamSha2 {
     }
 }
 
+/// XOF based on BLAKE3.
+#[derive(Clone, Debug)]
+pub struct XofBlake3(blake3::Hasher);
+
+impl Xof<16> for XofBlake3 {
+    type SeedStream = SeedStreamBlake3;
+
+    fn init(seed_bytes: &[u8; 16], dst: &[u8]) -> Self {
+        let mut xof = XofBlake3(blake3::Hasher::new());
+        xof.0
+            .update(&[dst.len().try_into().expect("dts must be at most 255 bytes")]);
+        xof.0.update(dst);
+        xof.0.update(seed_bytes);
+        xof
+    }
+
+    fn update(&mut self, data: &[u8]) {
+        self.0.update(data);
+    }
+
+    fn into_seed_stream(self) -> Self::SeedStream {
+        SeedStreamBlake3::new(self.0.finalize_xof())
+    }
+}
+
+/// Seed stream for [`XofBlake3`].
+pub struct SeedStreamBlake3(blake3::OutputReader);
+
+impl SeedStreamBlake3 {
+    pub(crate) fn new(reader: blake3::OutputReader) -> Self {
+        Self(reader)
+    }
+}
+
+impl RngCore for SeedStreamBlake3 {
+    fn fill_bytes(&mut self, dest: &mut [u8]) {
+        self.0.fill(dest);
+    }
+
+    fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), rand_core::Error> {
+        self.fill_bytes(dest);
+        Ok(())
+    }
+
+    fn next_u32(&mut self) -> u32 {
+        next_u32_via_fill(self)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        next_u64_via_fill(self)
+    }
+}
+
 /// Factory to produce multiple [`XofFixedKeyAes128`] instances with the same fixed key and
 /// different seeds.
 #[cfg(all(feature = "crypto-dependencies", feature = "experimental"))]
