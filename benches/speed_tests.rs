@@ -20,8 +20,15 @@ use prio::vdaf::prio2::Prio2;
 use prio::{
     benchmarked::*,
     field::{random_vector, Field128 as F, FieldElement},
-    flp::gadgets::Mul,
-    vdaf::{prio3::Prio3, Aggregator, Client},
+    flp::{
+        gadgets::{Mul, ParallelSum},
+        types::{Histogram, SumVec},
+    },
+    vdaf::{
+        prio3::Prio3,
+        xof::{XofBlake3, XofSha2, XofTurboShake128},
+        Aggregator, Client,
+    },
 };
 #[cfg(feature = "experimental")]
 use prio::{
@@ -224,6 +231,66 @@ fn prio3(c: &mut Criterion) {
         );
     }
 
+    for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31)] {
+        group.bench_with_input(
+            BenchmarkId::new("serial, turboshake", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofTurboShake128, 16>::new(
+                    num_shares,
+                    SumVec::<F, ParallelSum<F, Mul<F>>>::new(1, *input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = (0..u128::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                b.iter(|| vdaf.shard(&measurement, &nonce).unwrap());
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31)] {
+        group.bench_with_input(
+            BenchmarkId::new("serial, sha2", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofSha2, 16>::new(
+                    num_shares,
+                    SumVec::<F, ParallelSum<F, Mul<F>>>::new(1, *input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = (0..u128::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                b.iter(|| vdaf.shard(&measurement, &nonce).unwrap());
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31)] {
+        group.bench_with_input(
+            BenchmarkId::new("serial, blake3", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofBlake3, 16>::new(
+                    num_shares,
+                    SumVec::<F, ParallelSum<F, Mul<F>>>::new(1, *input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = (0..u128::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                b.iter(|| vdaf.shard(&measurement, &nonce).unwrap());
+            },
+        );
+    }
+
     #[cfg(feature = "multithreaded")]
     {
         for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31)] {
@@ -256,6 +323,81 @@ fn prio3(c: &mut Criterion) {
             &(input_length, chunk_length),
             |b, (input_length, chunk_length)| {
                 let vdaf = Prio3::new_sum_vec(num_shares, 1, *input_length, *chunk_length).unwrap();
+                let measurement = (0..u128::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 16]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 0, &(), &nonce, &public_share, &input_shares[0])
+                        .unwrap()
+                });
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31)] {
+        group.bench_with_input(
+            BenchmarkId::new("serial, turboshake", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofTurboShake128, 16>::new(
+                    num_shares,
+                    SumVec::<F, ParallelSum<F, Mul<F>>>::new(1, *input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = (0..u128::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 16]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 0, &(), &nonce, &public_share, &input_shares[0])
+                        .unwrap()
+                });
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31)] {
+        group.bench_with_input(
+            BenchmarkId::new("serial, sha2", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofSha2, 16>::new(
+                    num_shares,
+                    SumVec::<F, ParallelSum<F, Mul<F>>>::new(1, *input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = (0..u128::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 16]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 0, &(), &nonce, &public_share, &input_shares[0])
+                        .unwrap()
+                });
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31)] {
+        group.bench_with_input(
+            BenchmarkId::new("serial, blake3", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofBlake3, 16>::new(
+                    num_shares,
+                    SumVec::<F, ParallelSum<F, Mul<F>>>::new(1, *input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
                 let measurement = (0..u128::try_from(*input_length).unwrap())
                     .map(|i| i & 1)
                     .collect::<Vec<_>>();
@@ -330,6 +472,87 @@ fn prio3(c: &mut Criterion) {
         );
     }
 
+    for (input_length, chunk_length) in [
+        (10, 3),
+        (100, 10),
+        (1_000, 31),
+        (10_000, 100),
+        (100_000, 316),
+    ] {
+        if input_length >= 100_000 {
+            group.measurement_time(Duration::from_secs(15));
+        }
+        group.bench_with_input(
+            BenchmarkId::new("serial, turboshake", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofTurboShake128, 16>::new(
+                    num_shares,
+                    Histogram::<F, ParallelSum<F, Mul<F>>>::new(*input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = black_box(0);
+                let nonce = black_box([0u8; 16]);
+                b.iter(|| vdaf.shard(&measurement, &nonce).unwrap());
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [
+        (10, 3),
+        (100, 10),
+        (1_000, 31),
+        (10_000, 100),
+        (100_000, 316),
+    ] {
+        if input_length >= 100_000 {
+            group.measurement_time(Duration::from_secs(15));
+        }
+        group.bench_with_input(
+            BenchmarkId::new("serial, sha2", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofSha2, 16>::new(
+                    num_shares,
+                    Histogram::<F, ParallelSum<F, Mul<F>>>::new(*input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = black_box(0);
+                let nonce = black_box([0u8; 16]);
+                b.iter(|| vdaf.shard(&measurement, &nonce).unwrap());
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [
+        (10, 3),
+        (100, 10),
+        (1_000, 31),
+        (10_000, 100),
+        (100_000, 316),
+    ] {
+        if input_length >= 100_000 {
+            group.measurement_time(Duration::from_secs(15));
+        }
+        group.bench_with_input(
+            BenchmarkId::new("serial, blake3", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofBlake3, 16>::new(
+                    num_shares,
+                    Histogram::<F, ParallelSum<F, Mul<F>>>::new(*input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = black_box(0);
+                let nonce = black_box([0u8; 16]);
+                b.iter(|| vdaf.shard(&measurement, &nonce).unwrap());
+            },
+        );
+    }
+
     #[cfg(feature = "multithreaded")]
     {
         for (input_length, chunk_length) in [
@@ -377,6 +600,102 @@ fn prio3(c: &mut Criterion) {
             &(input_length, chunk_length),
             |b, (input_length, chunk_length)| {
                 let vdaf = Prio3::new_histogram(num_shares, *input_length, *chunk_length).unwrap();
+                let measurement = black_box(0);
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 16]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 0, &(), &nonce, &public_share, &input_shares[0])
+                        .unwrap()
+                });
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [
+        (10, 3),
+        (100, 10),
+        (1_000, 31),
+        (10_000, 100),
+        (100_000, 316),
+    ] {
+        if input_length >= 100_000 {
+            group.measurement_time(Duration::from_secs(15));
+        }
+        group.bench_with_input(
+            BenchmarkId::new("serial, turboshake", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofTurboShake128, 16>::new(
+                    num_shares,
+                    Histogram::<F, ParallelSum<F, Mul<F>>>::new(*input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = black_box(0);
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 16]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 0, &(), &nonce, &public_share, &input_shares[0])
+                        .unwrap()
+                });
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [
+        (10, 3),
+        (100, 10),
+        (1_000, 31),
+        (10_000, 100),
+        (100_000, 316),
+    ] {
+        if input_length >= 100_000 {
+            group.measurement_time(Duration::from_secs(15));
+        }
+        group.bench_with_input(
+            BenchmarkId::new("serial, sha2", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofSha2, 16>::new(
+                    num_shares,
+                    Histogram::<F, ParallelSum<F, Mul<F>>>::new(*input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = black_box(0);
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 16]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 0, &(), &nonce, &public_share, &input_shares[0])
+                        .unwrap()
+                });
+            },
+        );
+    }
+
+    for (input_length, chunk_length) in [
+        (10, 3),
+        (100, 10),
+        (1_000, 31),
+        (10_000, 100),
+        (100_000, 316),
+    ] {
+        if input_length >= 100_000 {
+            group.measurement_time(Duration::from_secs(15));
+        }
+        group.bench_with_input(
+            BenchmarkId::new("serial, blake3", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<_, XofBlake3, 16>::new(
+                    num_shares,
+                    Histogram::<F, ParallelSum<F, Mul<F>>>::new(*input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
                 let measurement = black_box(0);
                 let nonce = black_box([0u8; 16]);
                 let verify_key = black_box([0u8; 16]);
