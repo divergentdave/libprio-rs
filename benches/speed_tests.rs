@@ -216,7 +216,7 @@ fn prio3(c: &mut Criterion) {
     group.finish();
 
     let mut group = c.benchmark_group("prio3sumvec_shard");
-    for input_length in [10, 100, 1_000] {
+    for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
             BenchmarkId::new("serial", input_length),
@@ -232,7 +232,7 @@ fn prio3(c: &mut Criterion) {
         );
     }
 
-    for input_length in [10, 100, 1_000] {
+    for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
             BenchmarkId::new("serial, turboshake", input_length),
@@ -253,7 +253,7 @@ fn prio3(c: &mut Criterion) {
         );
     }
 
-    for input_length in [10, 100, 1_000] {
+    for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
             BenchmarkId::new("serial, sha2", input_length),
@@ -274,7 +274,7 @@ fn prio3(c: &mut Criterion) {
         );
     }
 
-    for input_length in [10, 100, 1_000] {
+    for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
             BenchmarkId::new("serial, blake3", input_length),
@@ -297,7 +297,7 @@ fn prio3(c: &mut Criterion) {
 
     #[cfg(feature = "multithreaded")]
     {
-        for input_length in [10, 100, 1_000] {
+        for input_length in [10, 30, 100, 300, 1_000] {
             let chunk_length = optimal_chunk_length(input_length);
             group.bench_with_input(
                 BenchmarkId::new("parallel", input_length),
@@ -322,7 +322,7 @@ fn prio3(c: &mut Criterion) {
     group.finish();
 
     let mut group = c.benchmark_group("prio3sumvec_prepare_init");
-    for input_length in [10, 100, 1_000] {
+    for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
             BenchmarkId::new("serial", input_length),
@@ -343,7 +343,7 @@ fn prio3(c: &mut Criterion) {
         );
     }
 
-    for input_length in [10, 100, 1_000] {
+    for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
             BenchmarkId::new("serial, turboshake", input_length),
@@ -369,7 +369,7 @@ fn prio3(c: &mut Criterion) {
         );
     }
 
-    for input_length in [10, 100, 1_000] {
+    for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
             BenchmarkId::new("serial, sha2", input_length),
@@ -395,7 +395,7 @@ fn prio3(c: &mut Criterion) {
         );
     }
 
-    for input_length in [10, 100, 1_000] {
+    for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
             BenchmarkId::new("serial, blake3", input_length),
@@ -423,7 +423,7 @@ fn prio3(c: &mut Criterion) {
 
     #[cfg(feature = "multithreaded")]
     {
-        for input_length in [10, 100, 1_000] {
+        for input_length in [10, 30, 100, 300, 1_000] {
             let chunk_length = optimal_chunk_length(input_length);
             group.bench_with_input(
                 BenchmarkId::new("parallel", input_length),
