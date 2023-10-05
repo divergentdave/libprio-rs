@@ -219,7 +219,7 @@ fn prio3(c: &mut Criterion) {
     for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
-            BenchmarkId::new("serial", input_length),
+            BenchmarkId::new("serial_shake128", input_length),
             &(input_length, chunk_length),
             |b, (input_length, chunk_length)| {
                 let vdaf = Prio3::new_sum_vec(num_shares, 1, *input_length, *chunk_length).unwrap();
@@ -325,7 +325,7 @@ fn prio3(c: &mut Criterion) {
     for input_length in [10, 30, 100, 300, 1_000] {
         let chunk_length = optimal_chunk_length(input_length);
         group.bench_with_input(
-            BenchmarkId::new("serial", input_length),
+            BenchmarkId::new("serial_shake128", input_length),
             &(input_length, chunk_length),
             |b, (input_length, chunk_length)| {
                 let vdaf = Prio3::new_sum_vec(num_shares, 1, *input_length, *chunk_length).unwrap();
@@ -466,7 +466,7 @@ fn prio3(c: &mut Criterion) {
             group.measurement_time(Duration::from_secs(15));
         }
         group.bench_with_input(
-            BenchmarkId::new("serial", input_length),
+            BenchmarkId::new("serial_shake128", input_length),
             &(input_length, chunk_length),
             |b, (input_length, chunk_length)| {
                 let vdaf = Prio3::new_histogram(num_shares, *input_length, *chunk_length).unwrap();
@@ -576,7 +576,7 @@ fn prio3(c: &mut Criterion) {
             group.measurement_time(Duration::from_secs(15));
         }
         group.bench_with_input(
-            BenchmarkId::new("serial", input_length),
+            BenchmarkId::new("serial_shake128", input_length),
             &(input_length, chunk_length),
             |b, (input_length, chunk_length)| {
                 let vdaf = Prio3::new_histogram(num_shares, *input_length, *chunk_length).unwrap();
