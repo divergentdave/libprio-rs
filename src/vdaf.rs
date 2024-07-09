@@ -19,7 +19,7 @@ use crate::{
     vdaf::xof::Seed,
 };
 use serde::{Deserialize, Serialize};
-use std::{error::Error, fmt::Debug, io::Cursor};
+use std::{error::Error, fmt::Debug, io::Cursor, sync::Arc};
 use subtle::{Choice, ConstantTimeEq};
 
 /// A component of the domain-separation tag, used to bind the VDAF operations to the document
@@ -149,6 +149,73 @@ impl<F: FieldElement, const SEED_SIZE: usize> Encode for Share<F, SEED_SIZE> {
                 Some(share_data.len() * F::ENCODED_SIZE)
             }
             Share::Helper(share_seed) => share_seed.encoded_len(),
+        }
+    }
+}
+
+/// An additive share of a vector of field elements. Uncompressed shares use an [`Arc`] shared
+/// pointer to avoid copying.
+#[derive(Debug, Clone)]
+enum ShareArc<F, const SEED_SIZE: usize> {
+    Leader(Arc<Vec<F>>),
+    Helper(Seed<SEED_SIZE>),
+}
+
+impl<F: ConstantTimeEq, const SEED_SIZE: usize> ConstantTimeEq for ShareArc<F, SEED_SIZE> {
+    fn ct_eq(&self, other: &Self) -> subtle::Choice {
+        // We allow short-circuiting on the type (Leader vs Helper) of the value, but not the types'
+        // contents.
+        match (self, other) {
+            (ShareArc::Leader(self_val), ShareArc::Leader(other_val)) => self_val.ct_eq(other_val),
+            (ShareArc::Helper(self_val), ShareArc::Helper(other_val)) => self_val.ct_eq(other_val),
+            _ => Choice::from(0),
+        }
+    }
+}
+
+impl<F: FieldElement, const SEED_SIZE: usize> ParameterizedDecode<ShareDecodingParameter<SEED_SIZE>>
+    for ShareArc<F, SEED_SIZE>
+{
+    fn decode_with_param(
+        decoding_parameter: &ShareDecodingParameter<SEED_SIZE>,
+        bytes: &mut Cursor<&[u8]>,
+    ) -> Result<Self, CodecError> {
+        match decoding_parameter {
+            ShareDecodingParameter::Leader(share_length) => {
+                let mut data = Vec::with_capacity(*share_length);
+                for _ in 0..*share_length {
+                    data.push(F::decode(bytes)?)
+                }
+                Ok(Self::Leader(Arc::new(data)))
+            }
+            ShareDecodingParameter::Helper => {
+                let seed = Seed::decode(bytes)?;
+                Ok(Self::Helper(seed))
+            }
+        }
+    }
+}
+
+impl<F: FieldElement, const SEED_SIZE: usize> Encode for ShareArc<F, SEED_SIZE> {
+    fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
+        match self {
+            ShareArc::Leader(share_data) => {
+                for x in share_data.as_ref() {
+                    x.encode(bytes)?;
+                }
+                Ok(())
+            }
+            ShareArc::Helper(share_seed) => share_seed.encode(bytes),
+        }
+    }
+
+    fn encoded_len(&self) -> Option<usize> {
+        match self {
+            ShareArc::Leader(share_data) => {
+                // Each element of the data vector has the same size.
+                Some(share_data.len() * F::ENCODED_SIZE)
+            }
+            ShareArc::Helper(share_seed) => share_seed.encoded_len(),
         }
     }
 }

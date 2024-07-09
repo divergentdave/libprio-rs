@@ -30,6 +30,7 @@
 use super::xof::XofTurboShake128;
 #[cfg(feature = "experimental")]
 use super::AggregatorWithNoise;
+use super::ShareArc;
 use crate::codec::{CodecError, Decode, Encode, ParameterizedDecode};
 #[cfg(feature = "experimental")]
 use crate::dp::DifferentialPrivacyStrategy;
@@ -62,6 +63,7 @@ use std::fmt::Debug;
 use std::io::Cursor;
 use std::iter::{self, IntoIterator};
 use std::marker::PhantomData;
+use std::sync::Arc;
 use subtle::{Choice, ConstantTimeEq};
 
 const DST_MEASUREMENT_SHARE: u16 = 1;
@@ -670,14 +672,14 @@ where
         // Prep the output messages.
         let mut out = Vec::with_capacity(num_aggregators as usize);
         out.push(Prio3InputShare {
-            measurement_share: Share::Leader(leader_measurement_share),
+            measurement_share: ShareArc::Leader(Arc::new(leader_measurement_share)),
             proofs_share: Share::Leader(leader_proofs_share),
             joint_rand_blind: leader_blind_opt,
         });
 
         for helper in helper_shares.into_iter() {
             out.push(Prio3InputShare {
-                measurement_share: Share::Helper(helper.measurement_share),
+                measurement_share: ShareArc::Helper(helper.measurement_share),
                 proofs_share: Share::Helper(helper.proofs_share),
                 joint_rand_blind: helper.joint_rand_blind,
             });
@@ -790,7 +792,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Prio3InputShare<F, const SEED_SIZE: usize> {
     /// The measurement share.
-    measurement_share: Share<F, SEED_SIZE>,
+    measurement_share: ShareArc<F, SEED_SIZE>,
 
     /// The proof share.
     proofs_share: Share<F, SEED_SIZE>,
@@ -823,7 +825,7 @@ impl<F: FftFriendlyFieldElement, const SEED_SIZE: usize> Encode for Prio3InputSh
     fn encode(&self, bytes: &mut Vec<u8>) -> Result<(), CodecError> {
         if matches!(
             (&self.measurement_share, &self.proofs_share),
-            (Share::Leader(_), Share::Helper(_)) | (Share::Helper(_), Share::Leader(_))
+            (ShareArc::Leader(_), Share::Helper(_)) | (ShareArc::Helper(_), Share::Leader(_))
         ) {
             panic!("tried to encode input share with ambiguous encoding")
         }
@@ -870,7 +872,7 @@ where
             )
         };
 
-        let measurement_share = Share::decode_with_param(&input_decoder, bytes)?;
+        let measurement_share = ShareArc::decode_with_param(&input_decoder, bytes)?;
         let proofs_share = Share::decode_with_param(&proof_decoder, bytes)?;
         let joint_rand_blind = if prio3.typ.joint_rand_len() > 0 {
             let blind = Seed::decode(bytes)?;
@@ -1042,7 +1044,7 @@ where
 /// State of each [`Aggregator`] during the Preparation phase.
 #[derive(Clone)]
 pub struct Prio3PrepareState<F, const SEED_SIZE: usize> {
-    measurement_share: Share<F, SEED_SIZE>,
+    measurement_share: ShareArc<F, SEED_SIZE>,
     joint_rand_seed: Option<Seed<SEED_SIZE>>,
     agg_id: u8,
     verifiers_len: usize,
@@ -1128,7 +1130,7 @@ where
         } else {
             ShareDecodingParameter::Helper
         };
-        let measurement_share = Share::decode_with_param(&share_decoder, bytes)?;
+        let measurement_share = ShareArc::decode_with_param(&share_decoder, bytes)?;
 
         let joint_rand_seed = if prio3.typ.joint_rand_len() > 0 {
             Some(Seed::decode(bytes)?)
@@ -1175,8 +1177,8 @@ where
         let agg_id = self.role_try_from(agg_id)?;
 
         let measurement_share = match msg.measurement_share {
-            Share::Leader(ref data) => Cow::Borrowed(data),
-            Share::Helper(ref seed) => Cow::Owned(
+            ShareArc::Leader(ref data) => Cow::Borrowed(data.as_slice()),
+            ShareArc::Helper(ref seed) => Cow::Owned(
                 P::seed_stream(
                     seed,
                     &self.domain_separation_tag(DST_MEASUREMENT_SHARE),
@@ -1357,15 +1359,19 @@ where
         }
 
         // Compute the output share.
-        let measurement_share = match step.measurement_share {
-            Share::Leader(data) => data,
-            Share::Helper(seed) => {
+        let measurement_share = match &step.measurement_share {
+            ShareArc::Leader(data) => Cow::Borrowed(data.as_slice()),
+            ShareArc::Helper(seed) => {
                 let dst = self.domain_separation_tag(DST_MEASUREMENT_SHARE);
-                P::seed_stream(&seed, &dst, &[step.agg_id]).into_field_vec(self.typ.input_len())
+                Cow::Owned(
+                    P::seed_stream(seed, &dst, &[step.agg_id]).into_field_vec(self.typ.input_len()),
+                )
             }
         };
 
-        let output_share = match self.typ.truncate(measurement_share) {
+        // TODO(#1094): This copy defeats the purpose of using an Arc in the first place. We'll need
+        // to change the FLP trait.
+        let output_share = match self.typ.truncate(measurement_share.as_ref().to_vec()) {
             Ok(data) => OutputShare(data),
             Err(err) => {
                 return Err(VdafError::from(err));
@@ -1630,8 +1636,8 @@ mod tests {
         assert_matches!(result, Err(VdafError::Uncategorized(_)));
 
         let (public_share, mut input_shares) = prio3.shard(&1, &nonce).unwrap();
-        assert_matches!(input_shares[0].measurement_share, Share::Leader(ref mut data) => {
-            data[0] += Field128::one();
+        assert_matches!(input_shares[0].measurement_share, ShareArc::Leader(ref mut data) => {
+            Arc::get_mut(data).unwrap()[0] += Field128::one();
         });
         let result = run_vdaf_prepare(&prio3, &verify_key, &(), &nonce, public_share, input_shares);
         assert_matches!(result, Err(VdafError::Uncategorized(_)));
@@ -1881,8 +1887,8 @@ mod tests {
             let (public_share, mut input_shares) = prio3
                 .shard(&vec![fp_4_inv, fp_8_inv, fp_16_inv], &nonce)
                 .unwrap();
-            assert_matches!(input_shares[0].measurement_share, Share::Leader(ref mut data) => {
-                data[0] += Field128::one();
+            assert_matches!(input_shares[0].measurement_share, ShareArc::Leader(ref mut data) => {
+                Arc::get_mut(data).unwrap()[0] += Field128::one();
             });
             let result =
                 run_vdaf_prepare(&prio3, &verify_key, &(), &nonce, public_share, input_shares);
@@ -1955,7 +1961,7 @@ mod tests {
         for (i, x) in input_shares.iter().enumerate() {
             for (j, y) in input_shares.iter().enumerate() {
                 if i != j {
-                    if let (Share::Helper(left), Share::Helper(right)) =
+                    if let (ShareArc::Helper(left), ShareArc::Helper(right)) =
                         (&x.measurement_share, &y.measurement_share)
                     {
                         assert_ne!(left, right);
@@ -2105,31 +2111,31 @@ mod tests {
         equality_comparison_test(&[
             // Default.
             Prio3InputShare {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 proofs_share: Share::Leader(Vec::from([1])),
                 joint_rand_blind: Some(Seed([2])),
             },
             // Modified measurement share.
             Prio3InputShare {
-                measurement_share: Share::Leader(Vec::from([100])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([100]))),
                 proofs_share: Share::Leader(Vec::from([1])),
                 joint_rand_blind: Some(Seed([2])),
             },
             // Modified proof share.
             Prio3InputShare {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 proofs_share: Share::Leader(Vec::from([101])),
                 joint_rand_blind: Some(Seed([2])),
             },
             // Modified joint_rand_blind.
             Prio3InputShare {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 proofs_share: Share::Leader(Vec::from([1])),
                 joint_rand_blind: Some(Seed([102])),
             },
             // Missing joint_rand_blind.
             Prio3InputShare {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 proofs_share: Share::Leader(Vec::from([1])),
                 joint_rand_blind: None,
             },
@@ -2185,42 +2191,42 @@ mod tests {
         equality_comparison_test(&[
             // Default.
             Prio3PrepareState {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 joint_rand_seed: Some(Seed([1])),
                 agg_id: 2,
                 verifiers_len: 3,
             },
             // Modified measurement share.
             Prio3PrepareState {
-                measurement_share: Share::Leader(Vec::from([100])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([100]))),
                 joint_rand_seed: Some(Seed([1])),
                 agg_id: 2,
                 verifiers_len: 3,
             },
             // Modified joint_rand_seed.
             Prio3PrepareState {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 joint_rand_seed: Some(Seed([101])),
                 agg_id: 2,
                 verifiers_len: 3,
             },
             // Missing joint_rand_seed.
             Prio3PrepareState {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 joint_rand_seed: None,
                 agg_id: 2,
                 verifiers_len: 3,
             },
             // Modified agg_id.
             Prio3PrepareState {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 joint_rand_seed: Some(Seed([1])),
                 agg_id: 102,
                 verifiers_len: 3,
             },
             // Modified verifier_len.
             Prio3PrepareState {
-                measurement_share: Share::Leader(Vec::from([0])),
+                measurement_share: ShareArc::Leader(Arc::new(Vec::from([0]))),
                 joint_rand_seed: Some(Seed([1])),
                 agg_id: 2,
                 verifiers_len: 103,
