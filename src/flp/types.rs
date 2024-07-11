@@ -71,9 +71,9 @@ impl<F: FftFriendlyFieldElement> Type for Count<F> {
         Ok(g[0].call(&[input[0], input[0]])? - input[0])
     }
 
-    fn truncate(&self, input: Vec<F>) -> Result<Vec<F>, FlpError> {
-        self.truncate_call_check(&input)?;
-        Ok(input)
+    fn truncate(&self, input: &[F]) -> Result<Vec<F>, FlpError> {
+        self.truncate_call_check(input)?;
+        Ok(input.to_vec())
     }
 
     fn input_len(&self) -> usize {
@@ -172,9 +172,9 @@ impl<F: FftFriendlyFieldElement> Type for Sum<F> {
         call_gadget_on_vec_entries(&mut g[0], input, joint_rand[0])
     }
 
-    fn truncate(&self, input: Vec<F>) -> Result<Vec<F>, FlpError> {
-        self.truncate_call_check(&input)?;
-        let res = F::decode_bitvector(&input)?;
+    fn truncate(&self, input: &[F]) -> Result<Vec<F>, FlpError> {
+        self.truncate_call_check(input)?;
+        let res = F::decode_bitvector(input)?;
         Ok(vec![res])
     }
 
@@ -276,9 +276,9 @@ impl<F: FftFriendlyFieldElement> Type for Average<F> {
         call_gadget_on_vec_entries(&mut g[0], input, joint_rand[0])
     }
 
-    fn truncate(&self, input: Vec<F>) -> Result<Vec<F>, FlpError> {
-        self.truncate_call_check(&input)?;
-        let res = F::decode_bitvector(&input)?;
+    fn truncate(&self, input: &[F]) -> Result<Vec<F>, FlpError> {
+        self.truncate_call_check(input)?;
+        let res = F::decode_bitvector(input)?;
         Ok(vec![res])
     }
 
@@ -434,9 +434,9 @@ where
         Ok(out)
     }
 
-    fn truncate(&self, input: Vec<F>) -> Result<Vec<F>, FlpError> {
-        self.truncate_call_check(&input)?;
-        Ok(input)
+    fn truncate(&self, input: &[F]) -> Result<Vec<F>, FlpError> {
+        self.truncate_call_check(input)?;
+        Ok(input.to_vec())
     }
 
     fn input_len(&self) -> usize {
@@ -632,8 +632,8 @@ where
         )
     }
 
-    fn truncate(&self, input: Vec<F>) -> Result<Vec<F>, FlpError> {
-        self.truncate_call_check(&input)?;
+    fn truncate(&self, input: &[F]) -> Result<Vec<F>, FlpError> {
+        self.truncate_call_check(input)?;
         let mut unflattened = Vec::with_capacity(self.len);
         for chunk in input.chunks(self.bits) {
             unflattened.push(F::decode_bitvector(chunk)?);
@@ -791,7 +791,7 @@ mod tests {
             count
                 .decode_result(
                     &count
-                        .truncate(count.encode_measurement(&true).unwrap())
+                        .truncate(&count.encode_measurement(&true).unwrap())
                         .unwrap(),
                     1
                 )
@@ -823,7 +823,7 @@ mod tests {
         // Round trip
         assert_eq!(
             sum.decode_result(
-                &sum.truncate(sum.encode_measurement(&27).unwrap()).unwrap(),
+                &sum.truncate(&sum.encode_measurement(&27).unwrap()).unwrap(),
                 1
             )
             .unwrap(),
@@ -869,7 +869,7 @@ mod tests {
             average
                 .decode_result(
                     &average
-                        .truncate(average.encode_measurement(&12).unwrap())
+                        .truncate(&average.encode_measurement(&12).unwrap())
                         .unwrap(),
                     1
                 )
@@ -882,7 +882,7 @@ mod tests {
             average
                 .decode_result(
                     &average
-                        .truncate(average.encode_measurement(&12).unwrap())
+                        .truncate(&average.encode_measurement(&12).unwrap())
                         .unwrap(),
                     24
                 )
@@ -908,7 +908,9 @@ mod tests {
         // Round trip
         assert_eq!(
             hist.decode_result(
-                &hist.truncate(hist.encode_measurement(&2).unwrap()).unwrap(),
+                &hist
+                    .truncate(&hist.encode_measurement(&2).unwrap())
+                    .unwrap(),
                 1
             )
             .unwrap(),
@@ -1005,7 +1007,7 @@ mod tests {
             sum_vec
                 .decode_result(
                     &sum_vec
-                        .truncate(sum_vec.encode_measurement(&want).unwrap())
+                        .truncate(&sum_vec.encode_measurement(&want).unwrap())
                         .unwrap(),
                     1
                 )

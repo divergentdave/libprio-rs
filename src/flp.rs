@@ -188,7 +188,7 @@ pub trait Type: Sized + Eq + Clone + Debug {
 
     /// Constructs an aggregatable output from an encoded input. Calling this method is only safe
     /// once `input` has been validated.
-    fn truncate(&self, input: Vec<Self::Field>) -> Result<Vec<Self::Field>, FlpError>;
+    fn truncate(&self, input: &[Self::Field]) -> Result<Vec<Self::Field>, FlpError>;
 
     /// The length in field elements of the encoded input returned by [`Self::encode_measurement`].
     fn input_len(&self) -> usize;
@@ -938,7 +938,7 @@ pub mod test_utils {
 
             // Try truncating the input.
             if let Some(ref expected_output) = self.expected_output {
-                let output = self.flp.truncate(self.input.to_vec()).unwrap();
+                let output = self.flp.truncate(self.input).unwrap();
 
                 assert_eq!(
                     output.len(),
@@ -1126,8 +1126,8 @@ mod tests {
             ])
         }
 
-        fn truncate(&self, input: Vec<F>) -> Result<Vec<F>, FlpError> {
-            Ok(input)
+        fn truncate(&self, input: &[F]) -> Result<Vec<F>, FlpError> {
+            Ok(input.to_vec())
         }
 
         fn decode_result(
@@ -1259,8 +1259,8 @@ mod tests {
             Ok(vec![F::from(*measurement)])
         }
 
-        fn truncate(&self, input: Vec<F>) -> Result<Vec<F>, FlpError> {
-            Ok(input)
+        fn truncate(&self, input: &[F]) -> Result<Vec<F>, FlpError> {
+            Ok(input.to_vec())
         }
 
         fn decode_result(

@@ -572,8 +572,8 @@ where
         Ok(out)
     }
 
-    fn truncate(&self, input: Vec<Field128>) -> Result<Vec<Self::Field>, FlpError> {
-        self.truncate_call_check(&input)?;
+    fn truncate(&self, input: &[Field128]) -> Result<Vec<Self::Field>, FlpError> {
+        self.truncate_call_check(input)?;
 
         let mut decoded_vector = vec![];
 
@@ -752,7 +752,7 @@ mod tests {
         assert_eq!(
             vsum.decode_result(
                 &vsum
-                    .truncate(vsum.encode_measurement(&fp_vec).unwrap())
+                    .truncate(&vsum.encode_measurement(&fp_vec).unwrap())
                     .unwrap(),
                 1
             )
@@ -762,7 +762,7 @@ mod tests {
 
         // Noise
         let mut v = vsum
-            .truncate(vsum.encode_measurement(&fp_vec).unwrap())
+            .truncate(&vsum.encode_measurement(&fp_vec).unwrap())
             .unwrap();
         let strategy = ZCdpDiscreteGaussian::from_budget(ZCdpBudget::new(
             Rational::from_unsigned(100u8, 3u8).unwrap(),

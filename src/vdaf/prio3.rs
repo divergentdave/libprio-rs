@@ -1371,7 +1371,7 @@ where
 
         // TODO(#1094): This copy defeats the purpose of using an Arc in the first place. We'll need
         // to change the FLP trait.
-        let output_share = match self.typ.truncate(measurement_share.as_ref().to_vec()) {
+        let output_share = match self.typ.truncate(measurement_share.as_ref()) {
             Ok(data) => OutputShare(data),
             Err(err) => {
                 return Err(VdafError::from(err));
