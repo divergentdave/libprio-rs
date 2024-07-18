@@ -1,0 +1,177 @@
+%% LyX 2.4.0~RC3 created this file.  For more info, see https://www.lyx.org/.
+%% Do not edit unless you really know what you are doing.
+\documentclass[american]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{babel}
+\usepackage{units}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{stackrel}
+\usepackage[]
+ {hyperref}
+
+\makeatletter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Textclass specific LaTeX commands.
+\theoremstyle{plain}
+\newtheorem{thm}{\protect\theoremname}
+\theoremstyle{definition}
+\newtheorem{defn}[thm]{\protect\definitionname}
+\ifx\proof\undefined
+\newenvironment{proof}[1][\protect\proofname]{\par
+	\normalfont\topsep6\p@\@plus6\p@\relax
+	\trivlist
+	\itemindent\parindent
+	\item[\hskip\labelsep\scshape #1]\ignorespaces
+}{%
+	\endtrivlist\@endpefalse
+}
+\providecommand{\proofname}{Proof}
+\fi
+
+\makeatother
+
+\providecommand{\definitionname}{Definition}
+\providecommand{\theoremname}{Theorem}
+
+\begin{document}
+\title{Differential Privacy Mechanism for \texttt{Prio3} and \texttt{PureDpDiscreteLaplace}}
+
+\maketitle
+Recall the definitions of pure differential privacy and the discrete
+Laplace distribution from \cite{CKS20}.
+\begin{defn}
+A randomized algorithm $M:\mathcal{X}^{n}\rightarrow\mathcal{Y}$
+satisfies $\varepsilon$-differential privacy if, for all $x,x^{\prime}\in\mathcal{X}^{n}$
+differing on a single element and all events $E\subset\mathcal{Y}$,
+we have $\mathbb{P}\left[M\left(x\right)\in E\right]\leq e^{\varepsilon}\cdot\mathbb{P}\left[M\left(x^{\prime}\right)\in E\right]$.
+\end{defn}
+%
+\begin{defn}
+The discrete Laplace distribution, with scale parameter $t$, is defined
+by the following probability density function, supported on the integers.
+\[
+\forall x\in\mathbb{Z},\underset{X\leftarrow\mathrm{Lap}_{\mathbb{Z}}\left(t\right)}{\mathbb{P}}\left[X=x\right]=\frac{e^{\nicefrac{1}{t}}-1}{e^{\nicefrac{1}{t}}+1}\cdot e^{\nicefrac{-\left|x\right|}{t}}
+\]
+\end{defn}
+The following differential privacy mechanism is implemented for the
+combination of the \texttt{PureDpDiscreteLaplace} strategy and the
+\texttt{Prio3Histogram} or \texttt{Prio3SumVec} VDAFs. Let $f\left(x\right)$
+be the VDAF's aggregation function, operating over the integers. The
+aggregation function produces a query result $q=f\left(x\right)\in\mathcal{Y}$.
+Without loss of generality, we assume the domain $\mathcal{Y}$ is
+a vector of integers, $\mathcal{Y}=\mathbb{Z}^{d}$. Let $GS_{f}$
+be the global sensitivity of $f\left(x\right)$, using the replacement
+definition of neighboring datasets. Let $\mathbb{F}_{p}$ be field
+of prime order over which Prio3 operates. Noise is sampled from the
+discrete Laplace distribution $\mathrm{Lap}_{\mathbb{Z}}\left(\nicefrac{GS_{f}}{\varepsilon}\right)$,
+projected into the field, and added to each coordinate of aggregate
+share field element vectors. Let $\pi_{\mathbb{F}_{p}}:\mathbb{Z}\rightarrow\mathbb{F}_{p}$
+and $\pi_{\mathbb{Z}}:\mathbb{F}_{p}\rightarrow\mathbb{Z}$ be the
+natural projections between the integers and field elements, where
+$\pi_{\mathbb{Z}}$ maps field elements to $\left[0,p\right)$. Let
+$q^{*}=f^{*}\left(x\right)\in\mathbb{F}_{p}^{d}$ be the element-wise
+projections of $q$ and $f$ into the field using $\pi_{\mathbb{F}_{p}}$.
+The un-noised aggregate shares produced by Prio3 are secret shares
+of the query result, $q^{*}=q^{\left(0\right)}+q^{\left(1\right)}$.
+Each aggregator samples noise from the discrete Laplace distribution
+and adds it to the un-noised aggregate shares, and then sends the
+sum as their aggregate share to the collector. If we pessimistically
+assume that only one honest aggregator out of the two aggregators
+is adding differential privacy noise, then the mechanism produces
+$M\left(x\right)=q^{\left(0\right)}+q^{\left(1\right)}+\pi_{\mathbb{F}_{p}}\left(Z\right)=q^{*}+\pi_{\mathbb{F}_{p}}\left(Z\right)$,
+where $Z_{j}\leftarrow\mathrm{Lap}_{\mathbb{Z}}\left(\nicefrac{GS_{f}}{\varepsilon}\right)$
+is drawn independently for all $1\leq j\le d$.
+\begin{thm}
+$M\left(x\right)=\pi_{\mathbb{F}_{p}}\left(f\left(x\right)\right)+\pi_{\mathbb{F}_{p}}\left(Z\right),Z_{j}\leftarrow Lap_{\mathbb{Z}}\left(\nicefrac{GS_{f}}{\varepsilon}\right)$
+satisfies $\varepsilon$-differential privacy.
+\end{thm}
+\begin{proof}
+We will show Definition 1 holds for singleton events, where $E$ is
+a set of cardinality one, then other events will follow by a union
+bound.
+
+Let $q=f\left(x\right)$, $q^{\prime}=f\left(x^{\prime}\right)$,
+and $q^{*}=\vec{\pi}_{\mathbb{F}_{p}}\left(f\left(x\right)\right)$,
+and let $q_{j}$, $q_{j}^{*}$, and $Z_{j}$ denote the $j$-th component
+of the respective vectors. Then $M_{j}\left(x\right)=q_{j}^{*}+\pi_{\mathbb{F}_{p}}\left(Z_{j}\right)$.
+Applying the probability density function of the discrete Laplace
+distribution, we have:
+\[
+\forall j\in\left[d\right],y_{j}\in\mathbb{F}_{p},\mathbb{P}\left[M_{j}\left(x\right)=y_{j}\right]=\mathbb{P}\left[\pi_{\mathbb{F}_{p}}\left(Z_{j}\right)=y_{j}-q_{j}^{*}\right]
+\]
+\[
+=\stackrel[k=-\infty]{\infty}{\sum}\mathbb{P}\left[Z_{j}=\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right]
+\]
+\[
+=\stackrel[k=-\infty]{\infty}{\sum}\frac{e^{\nicefrac{\varepsilon}{GS_{f}}}-1}{e^{\nicefrac{\varepsilon}{GS_{f}}}+1}e^{\nicefrac{-\varepsilon\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}{GS_{f}}}
+\]
+\[
+=\frac{e^{\nicefrac{\varepsilon}{GS_{f}}}-1}{e^{\nicefrac{\varepsilon}{GS_{f}}}+1}\stackrel[k=-\infty]{\infty}{\sum}e^{\nicefrac{-\varepsilon\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}{GS_{f}}}
+\]
+
+Since each $Z_{j}$ is drawn independently, the probability of the
+mechanism returning some result can be found by taking the product
+of the probabilities for each dimension of the result vector.
+\[
+\mathbb{P}\left[M\left(x\right)=y\right]=\left(\frac{e^{\nicefrac{\varepsilon}{GS_{f}}}-1}{e^{\nicefrac{\varepsilon}{GS_{f}}}+1}\right)^{d}\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{\nicefrac{-\varepsilon\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}{GS_{f}}}
+\]
+\[
+\mathbb{P}\left[M\left(x^{\prime}\right)=y\right]=\left(\frac{e^{\nicefrac{\varepsilon}{GS_{f}}}-1}{e^{\nicefrac{\varepsilon}{GS_{f}}}+1}\right)^{d}\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{\nicefrac{-\varepsilon\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}{GS_{f}}}
+\]
+
+By the definition of global sensitivity, we know $\left\Vert q-q^{\prime}\right\Vert _{\ell_{1}}\le GS_{f}$.
+We can break up the $\ell_{1}$ distance between $q$ and $q^{\prime}$
+by dimension, and relate this sum of absolute values of differences
+to the product of multiplicative factors of $e^{\left|q_{j}-q_{j}^{\prime}\right|}$,
+in order to get the bound we need. Let $\delta_{j}=q_{j}-q_{j}^{\prime}$.
+By the triangle inequality, $\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|\le\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|+\left|\delta_{j}\right|$.
+Since $\varepsilon>0$ and $GS_{f}>0$, then,
+\[
+-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|\ge-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|-\frac{\varepsilon}{GS_{f}}\left|\delta_{j}\right|
+\]
+\[
+e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}\ge e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|-\frac{\varepsilon\left|\delta_{j}\right|}{GS_{f}}}
+\]
+\[
+e^{\frac{\varepsilon\left|\delta_{j}\right|}{GS_{f}}}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}\ge e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}
+\]
+\[
+e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}\le e^{\frac{\varepsilon\left|\delta_{j}\right|}{GS_{f}}}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}
+\]
+
+Since the above holds for a fixed $y$, $q$ and $q^{\prime}$, and
+any $j$ and $k$, we can first add and then multiply inequalities
+together.
+\[
+\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}\le e^{\frac{\varepsilon\left|\delta_{j}\right|}{GS_{f}}}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}
+\]
+\[
+\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}\le\stackrel[j=1]{d}{\prod}e^{\frac{\varepsilon\left|\delta_{j}\right|}{GS_{f}}}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}
+\]
+\[
+\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}\le e^{\frac{\varepsilon\stackrel[j=1]{d}{\sum}\left|\delta_{j}\right|}{GS_{f}}}\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}
+\]
+\[
+\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}\le e^{\frac{\varepsilon}{GS_{f}}\left\Vert q-q^{\prime}\right\Vert _{\ell_{1}}}\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}
+\]
+Then, since $\left\Vert q-q^{\prime}\right\Vert _{\ell_{1}}\le GS_{f}$,
+\[
+\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}\le e^{\frac{\varepsilon}{GS_{f}}GS_{f}}\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}
+\]
+\[
+\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}^{\prime}+kp\right|}\le e^{\varepsilon}\stackrel[j=1]{d}{\prod}\stackrel[k=-\infty]{\infty}{\sum}e^{-\frac{\varepsilon}{GS_{f}}\left|\pi_{\mathbb{Z}}\left(y_{j}\right)-q_{j}+kp\right|}
+\]
+This shows that $\mathbb{P}\left[M\left(x^{\prime}\right)=y\right]\le e^{\varepsilon}\cdot\mathbb{P}\left[M\left(x\right)=y\right]$.
+By applying union bounds, then $\mathbb{P}\left[M\left(x^{\prime}\right)\in E\right]\le e^{\varepsilon}\cdot\mathbb{P}\left[M\left(x\right)\in E\right]$
+as well, and thus $M\left(x\right)$ satisfies $\varepsilon$-differential
+privacy.
+\end{proof}
+\begin{thebibliography}{1}
+\bibitem{CKS20}Canonne, C. L., Kamath, G., and Steinke, T., ``The
+Discrete Gaussian for Differential Privacy'', 2020, <\href{https://arxiv.org/abs/2004.00010}{https://arxiv.org/abs/2004.00010}>.
+
+\end{thebibliography}
+
+\end{document}
