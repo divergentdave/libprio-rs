@@ -20,8 +20,11 @@ use prio::vdaf::prio2::Prio2;
 use prio::{
     benchmarked::*,
     field::{random_vector, Field128 as F, FieldElement},
-    flp::gadgets::Mul,
-    vdaf::{prio3::Prio3, Aggregator, Client},
+    flp::{
+        gadgets::{Mul, ParallelSum},
+        types::SumVec,
+    },
+    vdaf::{prio3::Prio3, xof::XofHmacSha256Aes128, Aggregator, Client},
 };
 #[cfg(feature = "experimental")]
 use prio::{
@@ -133,8 +136,8 @@ fn prio2(c: &mut Criterion) {
     }
     group.finish();
 
-    let mut group = c.benchmark_group("prio2_prepare_init");
-    for input_length in [10, 100, 1_000] {
+    let mut group = c.benchmark_group("prio2_prepare_init_leader");
+    for input_length in [10, 100, 1_000, 100_000] {
         group.bench_with_input(
             BenchmarkId::from_parameter(input_length),
             &input_length,
@@ -148,6 +151,28 @@ fn prio2(c: &mut Criterion) {
                 let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
                 b.iter(|| {
                     vdaf.prepare_init(&verify_key, 0, &(), &nonce, &public_share, &input_shares[0])
+                        .unwrap();
+                });
+            },
+        );
+    }
+    group.finish();
+
+    let mut group = c.benchmark_group("prio2_prepare_init_helper");
+    for input_length in [10, 100, 1_000, 100_000] {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(input_length),
+            &input_length,
+            |b, input_length| {
+                let vdaf = Prio2::new(*input_length).unwrap();
+                let measurement = (0..u32::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 32]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 1, &(), &nonce, &public_share, &input_shares[1])
                         .unwrap();
                 });
             },
@@ -302,6 +327,64 @@ fn prio3(c: &mut Criterion) {
                 },
             );
         }
+    }
+    group.finish();
+
+    let mut group = c.benchmark_group("prio3sumvec_custom_prepare_init_leader");
+    for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31), (100_000, 393)] {
+        group.bench_with_input(
+            BenchmarkId::new("serial", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<SumVec<Field64, _>, XofHmacSha256Aes128, 32>::new(
+                    num_shares,
+                    2,
+                    0xFFFF1003,
+                    SumVec::<Field64, ParallelSum<_, _>>::new(1, *input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = (0..u64::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 32]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 0, &(), &nonce, &public_share, &input_shares[0])
+                        .unwrap()
+                });
+            },
+        );
+    }
+    group.finish();
+
+    let mut group = c.benchmark_group("prio3sumvec_custom_prepare_init_helper");
+    for (input_length, chunk_length) in [(10, 3), (100, 10), (1_000, 31), (100_000, 393)] {
+        group.bench_with_input(
+            BenchmarkId::new("serial", input_length),
+            &(input_length, chunk_length),
+            |b, (input_length, chunk_length)| {
+                let vdaf = Prio3::<SumVec<Field64, _>, XofHmacSha256Aes128, 32>::new(
+                    num_shares,
+                    2,
+                    0xFFFF1003,
+                    SumVec::<Field64, ParallelSum<_, _>>::new(1, *input_length, *chunk_length)
+                        .unwrap(),
+                )
+                .unwrap();
+                let measurement = (0..u64::try_from(*input_length).unwrap())
+                    .map(|i| i & 1)
+                    .collect::<Vec<_>>();
+                let nonce = black_box([0u8; 16]);
+                let verify_key = black_box([0u8; 32]);
+                let (public_share, input_shares) = vdaf.shard(&measurement, &nonce).unwrap();
+                b.iter(|| {
+                    vdaf.prepare_init(&verify_key, 1, &(), &nonce, &public_share, &input_shares[1])
+                        .unwrap()
+                });
+            },
+        );
     }
     group.finish();
 
